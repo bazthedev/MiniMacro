@@ -9,10 +9,13 @@ from pynput.mouse import Controller as MouseController
 import screeninfo
 import mousekey
 
+VER = "1.0.0"
+
 keyboard_controller = KeyboardController()
 mouse_controller = MouseController()
 mk = mousekey.MouseKey()
 mk.enable_failsafekill()
+
 
 def parse_key(k):
     special_keys = {
@@ -69,6 +72,8 @@ def run_macro(path):
     screen_width = primary_monitor.width
     screen_height = primary_monitor.height
 
+    drag_start = None
+
     for instr in instructions:
         parts = instr.split()
         if not parts:
@@ -114,34 +119,64 @@ def run_macro(path):
                 mk.move_to(x, y)
                 mk.right_click()
 
+            case "LCLP" | "RCLP":
+                drag_start = None
+
             case "LCD":
                 x = round(float(args[0]) * screen_width)
                 y = round(float(args[1]) * screen_height)
-                pyautogui.mouseDown(button='left')
+                drag_start = (x, y)
+                mousekey._mouse_click(mousekey.MOUSEEVENTF_LEFTDOWN)
                 mk.move_to(x, y)
-                pyautogui.mouseUp(button='left')
+                mousekey._mouse_click(mousekey.MOUSEEVENTF_LEFTUP)
 
             case "LCDP":
                 x = round(float(args[0]) * screen_width)
                 y = round(float(args[1]) * screen_height)
-                pyautogui.mouseDown(button='left')
+                drag_start = (x, y)
+                mousekey._mouse_click(mousekey.MOUSEEVENTF_LEFTDOWN)
                 mk.move_to(x, y)
-                pyautogui.mouseUp(button='left')
+
+            case "LCDR":
+                if drag_start:
+                    dx = round(float(args[0]) * screen_width)
+                    dy = round(float(args[1]) * screen_height)
+                    new_x = drag_start[0] + dx
+                    new_y = drag_start[1] + dy
+                    mk.move_to(new_x, new_y)
+                    drag_start = (new_x, new_y)
+
+            case "LCLP":
+                mousekey._mouse_click(mousekey.MOUSEEVENTF_LEFTUP)
+                drag_start = None
 
             case "RCD":
                 x = round(float(args[0]) * screen_width)
                 y = round(float(args[1]) * screen_height)
-                pyautogui.mouseDown(button='right')
-                mk.move_to(x, y)
-                pyautogui.mouseUp(button='right')
+                drag_start = (x, y)
+                mousekey._mouse_click(mousekey.MOUSEEVENTF_RIGHTDOWN)
+                mk.move(x, y)
+                mousekey._mouse_click(mousekey.MOUSEEVENTF_RIGHTUP)
 
             case "RCDP":
                 x = round(float(args[0]) * screen_width)
                 y = round(float(args[1]) * screen_height)
-                pyautogui.mouseDown(button='right')
+                drag_start = (x, y)
+                mousekey._mouse_click(mousekey.MOUSEEVENTF_RIGHTDOWN)
                 mk.move_to(x, y)
-                pyautogui.mouseUp(button='right')
 
+            case "RCDR":
+                if drag_start:
+                    dx = round(float(args[0]) * screen_width)
+                    dy = round(float(args[1]) * screen_height)
+                    new_x = drag_start[0] + dx
+                    new_y = drag_start[1] + dy
+                    mk.move_to(new_x, new_y)
+                    drag_start = (new_x, new_y)
+
+            case "RCLP":
+                mousekey._mouse_click(mousekey.MOUSEEVENTF_RIGHTUP)
+                drag_start = None
 
             case "MWU":
                 mouse_controller.scroll(100)
@@ -168,7 +203,9 @@ def run_macro(path):
             case "DBL":
                 x = round(float(args[0]) * screen_width)
                 y = round(float(args[1]) * screen_height)
-                pyautogui.doubleClick(x, y)
+                mk.move_to_natural(x, y)
+                mk.left_click()
+                mk.left_click()
 
             case _:
                 print(f"Unknown command: {cmd}")
@@ -177,14 +214,14 @@ def run_macro(path):
 def choose_and_run():
     root = tk.Tk()
     root.withdraw()
-    file_path = filedialog.askopenfilename(filetypes=[("Macro Script", "*.mms")])
+    file_path = filedialog.askopenfilename(filetypes=[("MiniMacro Script", "*.mms")])
+    time.sleep(2)
     if file_path:
         print(f"Running macro from: {file_path}")
         run_macro(file_path)
 
 if __name__ == "__main__":
     print("Press F3 to start playback...")
-
     def on_press(key):
         if key == keyboard.Key.f3:
             threading.Thread(target=choose_and_run, daemon=True).start()
