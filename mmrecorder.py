@@ -10,10 +10,13 @@ recording_started = False
 events = []
 last_time = None
 dragging = {'left': False, 'right': False}
+drag_start_pos = {'left': None, 'right': None}
 held_keys = set()
 sampling_thread = None
 
 screen_width, screen_height = pyautogui.size()
+
+VER = "1.0.0"
 
 def add_event(instruction, data=None, comment=None):
     global last_time
@@ -42,10 +45,7 @@ def on_click(x, y, button, pressed):
     global recording_started
     btn = str(button)
 
-    if not recording:
-        return
-
-    if not recording_started:
+    if not recording or not recording_started:
         return
 
     x_p, y_p = normalize_coords(x, y)
@@ -53,15 +53,20 @@ def on_click(x, y, button, pressed):
     if pressed:
         if 'left' in btn:
             dragging['left'] = True
+            drag_start_pos['left'] = (x_p, y_p)
         elif 'right' in btn:
             dragging['right'] = True
+            drag_start_pos['right'] = (x_p, y_p)
     else:
         if 'left' in btn:
             dragging['left'] = False
+            drag_start_pos['left'] = None
             add_event("LCLP", [x_p, y_p])
         elif 'right' in btn:
             dragging['right'] = False
+            drag_start_pos['right'] = None
             add_event("RCLP", [x_p, y_p])
+
 
 def on_scroll(x, y, dx, dy):
     if not recording or not recording_started:
@@ -121,23 +126,32 @@ def sample_mouse_drag():
         if dragging['left']:
             x, y = pyautogui.position()
             x_p, y_p = normalize_coords(x, y)
-            add_event("LCDP", [x_p, y_p])
+            start = drag_start_pos['left']
+            if start:
+                dx = round(x_p - start[0], 6)
+                dy = round(y_p - start[1], 6)
+                add_event("LCDR", [dx, dy])
         elif dragging['right']:
             x, y = pyautogui.position()
             x_p, y_p = normalize_coords(x, y)
-            add_event("RCDP", [x_p, y_p])
+            start = drag_start_pos['right']
+            if start:
+                dx = round(x_p - start[0], 6)
+                dy = round(y_p - start[1], 6)
+                add_event("RCDR", [dx, dy])
         time.sleep(0.01)
+
 
 def ask_to_save():
     root = tk.Tk()
     root.withdraw()
     if messagebox.askyesno("Save Recording", "Do you want to save the steps?"):
-        file_path = filedialog.asksaveasfilename(defaultextension=".mms", filetypes=[("Macro Script", "*.mms")])
+        file_path = filedialog.asksaveasfilename(defaultextension=".mms", filetypes=[("MiniMacro Script", "*.mms")])
         if file_path:
             with open(file_path, "w") as f:
                 f.write(f"SCW {screen_width}\n")
                 f.write(f"SCH {screen_height}\n")
-                f.write("?\n")
+                f.write(f"? This script was recorded in MiniMacro v{VER}\n")
                 for event in events:
                     f.write(event + "\n")
             print(f"Saved to {file_path}")
